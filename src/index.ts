@@ -5,9 +5,6 @@
  * Does one thing: securely deliver and persist context-rich messages (Tez) for teams.
  */
 
-import { config as dotenvConfig } from "dotenv";
-dotenvConfig();
-
 import express from "express";
 import cors from "cors";
 import { config } from "./config.js";

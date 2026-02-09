@@ -2,7 +2,12 @@
  * tezit-relay configuration
  *
  * All settings from environment. No hardcoded product names.
+ * dotenv must load here (not in index.ts) because ESM import hoisting
+ * evaluates this module before any code in index.ts runs.
  */
+
+import { config as dotenvConfig } from "dotenv";
+dotenvConfig();
 
 export const config = {
   port: parseInt(process.env.PORT || "3002", 10),
