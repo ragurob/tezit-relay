@@ -14,7 +14,7 @@ import { z } from "zod";
 import { eq, and, desc, inArray, or } from "drizzle-orm";
 import { db, tez, tezContext, tezRecipients } from "../db/index.js";
 import { authenticate } from "../middleware/auth.js";
-import { assertTeamMember } from "../services/acl.js";
+import { assertTeamMember, assertTezAccess } from "../services/acl.js";
 import { recordAudit } from "../services/audit.js";
 
 export const tezRoutes = Router();
@@ -249,10 +249,8 @@ tezRoutes.post("/:id/reply", authenticate, async (req, res) => {
 
     const parentTez = parent[0];
 
-    // ACL: replier must be in the same team (for team-based tez)
-    if (parentTez.teamId) {
-      await assertTeamMember(userId, parentTez.teamId);
-    }
+    // ACL: verify access (team membership, conversation membership, or sender)
+    await assertTezAccess(userId, parentTez);
 
     const now = new Date().toISOString();
     const replyId = randomUUID();
@@ -341,10 +339,8 @@ tezRoutes.get("/:id", authenticate, async (req, res) => {
 
     const theTez = rows[0];
 
-    // ACL: reader must be in the team (for team-based tez)
-    if (theTez.teamId) {
-      await assertTeamMember(userId, theTez.teamId);
-    }
+    // ACL: verify access (team membership, conversation membership, or sender)
+    await assertTezAccess(userId, theTez);
 
     // Fetch all context layers
     const contextItems = await db
@@ -402,10 +398,8 @@ tezRoutes.get("/:id/thread", authenticate, async (req, res) => {
 
     const threadId = root[0].threadId || root[0].id;
 
-    // ACL (for team-based tez)
-    if (root[0].teamId) {
-      await assertTeamMember(userId, root[0].teamId);
-    }
+    // ACL: verify access (team membership, conversation membership, or sender)
+    await assertTezAccess(userId, root[0]);
 
     // Get all tezits in this thread, chronological
     const thread = await db
