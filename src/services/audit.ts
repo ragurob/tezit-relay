@@ -17,19 +17,24 @@ export type AuditAction =
   | "tez.deleted"
   | "team.created"
   | "team.member_added"
-  | "team.member_removed";
+  | "team.member_removed"
+  | "contact.registered"
+  | "contact.updated"
+  | "conversation.created"
+  | "conversation.message_sent"
+  | "conversation.read";
 
 export async function recordAudit(entry: {
-  teamId: string;
+  teamId?: string;
   actorUserId: string;
   action: AuditAction;
-  targetType: "tez" | "team";
+  targetType: "tez" | "team" | "contact" | "conversation";
   targetId: string;
   metadata?: Record<string, unknown>;
 }): Promise<void> {
   await db.insert(auditLog).values({
     id: randomUUID(),
-    teamId: entry.teamId,
+    teamId: entry.teamId ?? "system",
     actorUserId: entry.actorUserId,
     action: entry.action,
     targetType: entry.targetType,

@@ -12,6 +12,9 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || "change-me-in-production",
   jwtIssuer: process.env.JWT_ISSUER || "tezit-relay",
 
+  // Relay identity
+  relayHost: process.env.RELAY_HOST || "localhost",
+
   // Limits
   maxTezSizeBytes: parseInt(process.env.MAX_TEZ_SIZE_BYTES || "1048576", 10),
   maxContextItems: parseInt(process.env.MAX_CONTEXT_ITEMS || "50", 10),

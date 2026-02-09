@@ -5,7 +5,7 @@
  * Deliberately minimal — no billing, no onboarding, no AI runtime tables.
  */
 
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, primaryKey } from "drizzle-orm/sqlite-core";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEAMS — who can communicate
@@ -43,9 +43,8 @@ export const tez = sqliteTable(
   "tez",
   {
     id: text("id").primaryKey(), // UUID
-    teamId: text("team_id")
-      .notNull()
-      .references(() => teams.id),
+    teamId: text("team_id").references(() => teams.id), // optional — tez belongs to team OR conversation
+    conversationId: text("conversation_id"), // FK → conversations.id (optional)
     threadId: text("thread_id"), // null = root of new thread, else references tez.id
     parentTezId: text("parent_tez_id"), // direct reply-to (for threading)
 
@@ -66,6 +65,7 @@ export const tez = sqliteTable(
   },
   (table) => [
     index("idx_tez_team").on(table.teamId),
+    index("idx_tez_conversation").on(table.conversationId),
     index("idx_tez_thread").on(table.threadId),
     index("idx_tez_sender").on(table.senderUserId),
     index("idx_tez_created").on(table.createdAt),
@@ -123,6 +123,63 @@ export const tezRecipients = sqliteTable(
   (table) => [
     index("idx_recip_tez").on(table.tezId),
     index("idx_recip_user").on(table.userId),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUDIT LOG — append-only, every mutation recorded
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTACTS — user profiles / discovery
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const contacts = sqliteTable(
+  "contacts",
+  {
+    id: text("id").primaryKey(), // same as userId
+    displayName: text("display_name").notNull(),
+    email: text("email"), // optional, for discovery
+    avatarUrl: text("avatar_url"), // optional
+    tezAddress: text("tez_address").notNull().unique(), // e.g. "user@relay.example.com"
+    status: text("status").notNull().default("active"), // active | away | offline
+    lastSeenAt: text("last_seen_at"),
+    registeredAt: text("registered_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("idx_contacts_email").on(table.email),
+    index("idx_contacts_tez_address").on(table.tezAddress),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONVERSATIONS — DM + group chat metadata
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const conversations = sqliteTable("conversations", {
+  id: text("id").primaryKey(), // UUID
+  type: text("type").notNull(), // "dm" | "group"
+  name: text("name"), // null for DMs, required for groups
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const conversationMembers = sqliteTable(
+  "conversation_members",
+  {
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversations.id),
+    userId: text("user_id").notNull(),
+    joinedAt: text("joined_at").notNull(),
+    lastReadAt: text("last_read_at"), // cursor for unread counts
+  },
+  (table) => [
+    primaryKey({ columns: [table.conversationId, table.userId] }),
+    index("idx_cm_conv").on(table.conversationId),
+    index("idx_cm_user").on(table.userId),
   ]
 );
 

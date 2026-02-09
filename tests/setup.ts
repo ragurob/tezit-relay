@@ -57,7 +57,8 @@ export async function initTestDb() {
 
     CREATE TABLE IF NOT EXISTS tez (
       id TEXT PRIMARY KEY,
-      team_id TEXT NOT NULL REFERENCES teams(id),
+      team_id TEXT REFERENCES teams(id),
+      conversation_id TEXT,
       thread_id TEXT,
       parent_tez_id TEXT,
       surface_text TEXT NOT NULL,
@@ -71,6 +72,7 @@ export async function initTestDb() {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_tez_team ON tez(team_id);
+    CREATE INDEX IF NOT EXISTS idx_tez_conversation ON tez(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_tez_thread ON tez(thread_id);
     CREATE INDEX IF NOT EXISTS idx_tez_sender ON tez(sender_user_id);
     CREATE INDEX IF NOT EXISTS idx_tez_created ON tez(created_at);
@@ -98,6 +100,39 @@ export async function initTestDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_recip_tez ON tez_recipients(tez_id);
     CREATE INDEX IF NOT EXISTS idx_recip_user ON tez_recipients(user_id);
+
+    CREATE TABLE IF NOT EXISTS contacts (
+      id TEXT PRIMARY KEY,
+      display_name TEXT NOT NULL,
+      email TEXT,
+      avatar_url TEXT,
+      tez_address TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'active',
+      last_seen_at TEXT,
+      registered_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(email);
+    CREATE INDEX IF NOT EXISTS idx_contacts_tez_address ON contacts(tez_address);
+
+    CREATE TABLE IF NOT EXISTS conversations (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      name TEXT,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS conversation_members (
+      conversation_id TEXT NOT NULL REFERENCES conversations(id),
+      user_id TEXT NOT NULL,
+      joined_at TEXT NOT NULL,
+      last_read_at TEXT,
+      PRIMARY KEY (conversation_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_cm_conv ON conversation_members(conversation_id);
+    CREATE INDEX IF NOT EXISTS idx_cm_user ON conversation_members(user_id);
 
     CREATE TABLE IF NOT EXISTS audit_log (
       id TEXT PRIMARY KEY,
@@ -128,6 +163,9 @@ export async function cleanDb() {
     DELETE FROM tez_recipients;
     DELETE FROM tez_context;
     DELETE FROM tez;
+    DELETE FROM conversation_members;
+    DELETE FROM conversations;
+    DELETE FROM contacts;
     DELETE FROM team_members;
     DELETE FROM teams;
   `);
@@ -275,6 +313,9 @@ export async function createTestApp(): Promise<Express> {
   const cors = (await import("cors")).default;
   const { tezRoutes } = await import("../src/routes/tez.js");
   const { teamRoutes } = await import("../src/routes/teams.js");
+  const { contactRoutes } = await import("../src/routes/contacts.js");
+  const { conversationRoutes } = await import("../src/routes/conversations.js");
+  const { unreadRoutes } = await import("../src/routes/unread.js");
 
   const app = express();
   app.use(cors());
@@ -286,6 +327,9 @@ export async function createTestApp(): Promise<Express> {
 
   app.use("/tez", tezRoutes);
   app.use("/teams", teamRoutes);
+  app.use("/contacts", contactRoutes);
+  app.use("/conversations", conversationRoutes);
+  app.use("/unread", unreadRoutes);
 
   app.use((_req, res) => {
     res.status(404).json({

@@ -10,6 +10,9 @@ import cors from "cors";
 import { config } from "./config.js";
 import { tezRoutes } from "./routes/tez.js";
 import { teamRoutes } from "./routes/teams.js";
+import { contactRoutes } from "./routes/contacts.js";
+import { conversationRoutes } from "./routes/conversations.js";
+import { unreadRoutes } from "./routes/unread.js";
 
 const app = express();
 
@@ -24,6 +27,9 @@ app.get("/health", (_req, res) => {
 // Core routes
 app.use("/tez", tezRoutes);
 app.use("/teams", teamRoutes);
+app.use("/contacts", contactRoutes);
+app.use("/conversations", conversationRoutes);
+app.use("/unread", unreadRoutes);
 
 // 404 catch-all
 app.use((_req, res) => {
