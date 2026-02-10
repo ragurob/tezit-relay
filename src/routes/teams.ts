@@ -37,6 +37,7 @@ teamRoutes.get("/", authenticate, async (req, res) => {
 
 // POST /teams — Create a team
 const CreateTeamSchema = z.object({
+  id: z.string().uuid().optional(),
   name: z.string().min(1).max(100),
 });
 
@@ -45,7 +46,7 @@ teamRoutes.post("/", authenticate, async (req, res) => {
     const body = CreateTeamSchema.parse(req.body);
     const userId = req.user!.userId;
     const now = new Date().toISOString();
-    const teamId = randomUUID();
+    const teamId = body.id || randomUUID();
 
     await db.insert(teams).values({
       id: teamId,

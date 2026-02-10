@@ -26,6 +26,7 @@ export const tezRoutes = Router();
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ShareSchema = z.object({
+  id: z.string().uuid().optional(),
   teamId: z.string().uuid(),
   surfaceText: z.string().min(1).max(10000),
   type: z.enum(["note", "decision", "handoff", "question", "update"]).default("note"),
@@ -55,7 +56,7 @@ tezRoutes.post("/share", authenticate, async (req, res) => {
     await assertTeamMember(userId, body.teamId);
 
     const now = new Date().toISOString();
-    const tezId = randomUUID();
+    const tezId = body.id || randomUUID();
     const threadId = tezId; // root of a new thread
 
     // 1. Create the Tez
