@@ -336,3 +336,69 @@ describe("GET /contacts/:userId", () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /contacts/:userId/routing — Routing recommendation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("GET /contacts/:userId/routing", () => {
+  it("returns routing for a registered contact", async () => {
+    await registerContact(USER_B, {
+      displayName: "Bob",
+      email: "bob@example.com",
+    });
+
+    const token = await authHeader(USER_A);
+    const res = await request(app)
+      .get(`/contacts/${USER_B}/routing`)
+      .set("Authorization", token);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeDefined();
+    expect(res.body.data.contactId).toBe(USER_B);
+    expect(res.body.data.displayName).toBe("Bob");
+    expect(res.body.data.tezAddress).toBeDefined();
+    expect(res.body.data.recommended).toBe("tezit");
+    expect(res.body.data.channels).toContain("tezit");
+    expect(res.body.data.channels).toContain("email");
+    expect(res.body.data.addresses.tezit).toBeDefined();
+    expect(res.body.data.addresses.email).toBe("bob@example.com");
+    expect(res.body.data.nativeTezAvailable).toBe(true);
+    expect(res.body.data.requiresTipLink).toBe(false);
+  });
+
+  it("returns 404 for unknown contact", async () => {
+    const token = await authHeader(USER_A);
+    const res = await request(app)
+      .get("/contacts/nonexistent-user/routing")
+      .set("Authorization", token);
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("CONTACT_NOT_FOUND");
+  });
+
+  it("includes tezit as default when no email configured", async () => {
+    await registerContact(USER_B, {
+      displayName: "Bob No Email",
+    });
+
+    const token = await authHeader(USER_A);
+    const res = await request(app)
+      .get(`/contacts/${USER_B}/routing`)
+      .set("Authorization", token);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.channels).toEqual(["tezit"]);
+    expect(res.body.data.recommended).toBe("tezit");
+    expect(res.body.data.nativeTezAvailable).toBe(true);
+    expect(res.body.data.requiresTipLink).toBe(false);
+    // No email address in addresses
+    expect(res.body.data.addresses.email).toBeUndefined();
+  });
+
+  it("returns 401 without auth", async () => {
+    const res = await request(app).get(`/contacts/${USER_B}/routing`);
+
+    expect(res.status).toBe(401);
+  });
+});

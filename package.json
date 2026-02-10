@@ -1,6 +1,6 @@
 {
   "name": "tezit-relay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Open relay server for the Tezit Protocol — securely deliver and persist context-rich messages for teams",
   "type": "module",
   "main": "dist/index.js",

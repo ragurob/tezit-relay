@@ -195,3 +195,60 @@ contactRoutes.get("/:userId", authenticate, async (req, res) => {
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to get contact" } });
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /contacts/:userId/routing — Routing recommendation for reaching a contact
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /contacts/:userId/routing
+ * Returns routing recommendation for reaching a specific contact.
+ * The agent uses this to pick the right delivery channel.
+ */
+contactRoutes.get("/:userId/routing", authenticate, async (req, res) => {
+  try {
+    const targetUserId = req.params.userId;
+
+    const contact = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.id, targetUserId))
+      .limit(1);
+
+    if (contact.length === 0) {
+      res.status(404).json({ error: { code: "CONTACT_NOT_FOUND", message: "Contact not found" } });
+      return;
+    }
+
+    const c = contact[0];
+
+    // Build channel list from available contact data
+    const channels: string[] = ["tezit"];
+    if (c.email) channels.push("email");
+
+    // Build routing recommendation
+    const routing = {
+      contactId: c.id,
+      displayName: c.displayName,
+      tezAddress: c.tezAddress,
+      // Primary: tezit is always the preferred native channel
+      recommended: "tezit",
+      // Full fallback chain
+      channels,
+      // Channel-specific addresses
+      addresses: {
+        tezit: c.tezAddress,
+        ...(c.email && { email: c.email }),
+      },
+      // Whether native Tez (full context) is available
+      nativeTezAvailable: true,
+      // If routing to lossy channel, agent should include TIP link
+      requiresTipLink: false,
+    };
+
+    res.json({ data: routing });
+  } catch (err) {
+    console.error("Get contact routing error:", err);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to get routing" } });
+  }
+});

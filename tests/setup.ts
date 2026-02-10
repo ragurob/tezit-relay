@@ -148,6 +148,47 @@ export async function initTestDb() {
     CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_user_id);
     CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_log(target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_log(created_at);
+
+    CREATE TABLE IF NOT EXISTS federated_servers (
+      host TEXT PRIMARY KEY,
+      server_id TEXT NOT NULL,
+      public_key TEXT NOT NULL,
+      display_name TEXT,
+      trust_level TEXT NOT NULL DEFAULT 'pending',
+      protocol_version TEXT,
+      last_seen_at TEXT,
+      first_seen_at TEXT NOT NULL,
+      metadata TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS federated_tez (
+      id TEXT PRIMARY KEY,
+      local_tez_id TEXT NOT NULL REFERENCES tez(id),
+      remote_tez_id TEXT NOT NULL,
+      remote_host TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      bundle_hash TEXT,
+      federated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_ft_local_tez ON federated_tez(local_tez_id);
+    CREATE INDEX IF NOT EXISTS idx_ft_remote ON federated_tez(remote_host, remote_tez_id);
+
+    CREATE TABLE IF NOT EXISTS federation_outbox (
+      id TEXT PRIMARY KEY,
+      tez_id TEXT NOT NULL REFERENCES tez(id),
+      target_host TEXT NOT NULL,
+      target_addresses TEXT NOT NULL,
+      bundle TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_attempt_at TEXT,
+      next_retry_at TEXT,
+      created_at TEXT NOT NULL,
+      delivered_at TEXT,
+      error TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_fo_status ON federation_outbox(status);
+    CREATE INDEX IF NOT EXISTS idx_fo_next_retry ON federation_outbox(next_retry_at);
   `);
 
   testDb = drizzle(testClient, { schema });
@@ -159,6 +200,9 @@ export async function initTestDb() {
  */
 export async function cleanDb() {
   await testClient.executeMultiple(`
+    DELETE FROM federation_outbox;
+    DELETE FROM federated_tez;
+    DELETE FROM federated_servers;
     DELETE FROM audit_log;
     DELETE FROM tez_recipients;
     DELETE FROM tez_context;
@@ -316,6 +360,8 @@ export async function createTestApp(): Promise<Express> {
   const { contactRoutes } = await import("../src/routes/contacts.js");
   const { conversationRoutes } = await import("../src/routes/conversations.js");
   const { unreadRoutes } = await import("../src/routes/unread.js");
+  const { federationRoutes } = await import("../src/routes/federation.js");
+  const { adminRoutes } = await import("../src/routes/admin.js");
 
   const app = express();
   app.use(cors());
@@ -330,6 +376,8 @@ export async function createTestApp(): Promise<Express> {
   app.use("/contacts", contactRoutes);
   app.use("/conversations", conversationRoutes);
   app.use("/unread", unreadRoutes);
+  app.use("/federation", federationRoutes);
+  app.use("/admin", adminRoutes);
 
   app.use((_req, res) => {
     res.status(404).json({

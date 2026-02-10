@@ -127,10 +127,6 @@ export const tezRecipients = sqliteTable(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AUDIT LOG — append-only, every mutation recorded
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
 // CONTACTS — user profiles / discovery
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -180,6 +176,65 @@ export const conversationMembers = sqliteTable(
     primaryKey({ columns: [table.conversationId, table.userId] }),
     index("idx_cm_conv").on(table.conversationId),
     index("idx_cm_user").on(table.userId),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FEDERATION — server-to-server trust and delivery
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const federatedServers = sqliteTable("federated_servers", {
+  host: text("host").primaryKey(),
+  serverId: text("server_id").notNull(),
+  publicKey: text("public_key").notNull(),
+  displayName: text("display_name"),
+  trustLevel: text("trust_level").notNull().default("pending"), // pending | trusted | blocked
+  protocolVersion: text("protocol_version"),
+  lastSeenAt: text("last_seen_at"),
+  firstSeenAt: text("first_seen_at").notNull(),
+  metadata: text("metadata"), // JSON: profiles, capabilities
+});
+
+export const federatedTez = sqliteTable(
+  "federated_tez",
+  {
+    id: text("id").primaryKey(), // local UUID
+    localTezId: text("local_tez_id")
+      .notNull()
+      .references(() => tez.id),
+    remoteTezId: text("remote_tez_id").notNull(),
+    remoteHost: text("remote_host").notNull(),
+    direction: text("direction").notNull(), // 'inbound' | 'outbound'
+    bundleHash: text("bundle_hash"),
+    federatedAt: text("federated_at").notNull(),
+  },
+  (table) => [
+    index("idx_ft_local_tez").on(table.localTezId),
+    index("idx_ft_remote").on(table.remoteHost, table.remoteTezId),
+  ]
+);
+
+export const federationOutbox = sqliteTable(
+  "federation_outbox",
+  {
+    id: text("id").primaryKey(),
+    tezId: text("tez_id")
+      .notNull()
+      .references(() => tez.id),
+    targetHost: text("target_host").notNull(),
+    targetAddresses: text("target_addresses").notNull(), // JSON array of tezAddresses
+    bundle: text("bundle").notNull(), // JSON federation bundle
+    status: text("status").notNull().default("pending"), // pending | delivered | failed | expired
+    attempts: integer("attempts").notNull().default(0),
+    lastAttemptAt: text("last_attempt_at"),
+    nextRetryAt: text("next_retry_at"),
+    createdAt: text("created_at").notNull(),
+    deliveredAt: text("delivered_at"),
+    error: text("error"),
+  },
+  (table) => [
+    index("idx_fo_status").on(table.status),
+    index("idx_fo_next_retry").on(table.nextRetryAt),
   ]
 );
 

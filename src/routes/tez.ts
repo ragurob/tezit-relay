@@ -12,10 +12,12 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { eq, and, desc, inArray, or } from "drizzle-orm";
-import { db, tez, tezContext, tezRecipients } from "../db/index.js";
+import { db, tez, tezContext, tezRecipients, contacts } from "../db/index.js";
 import { authenticate } from "../middleware/auth.js";
 import { assertTeamMember, assertTezAccess } from "../services/acl.js";
 import { recordAudit } from "../services/audit.js";
+import { config } from "../config.js";
+import { partitionRecipients, routeToFederation } from "../services/federationOutbound.js";
 
 export const tezRoutes = Router();
 
@@ -114,6 +116,39 @@ tezRoutes.post("/share", authenticate, async (req, res) => {
         contextLayerCount: body.context.length,
       },
     });
+
+    // 5. Federation: detect remote recipients and route
+    if (config.federationEnabled && body.recipients.length > 0) {
+      // Look up sender's tezAddress
+      const senderContact = await db
+        .select()
+        .from(contacts)
+        .where(eq(contacts.id, userId))
+        .limit(1);
+      const senderAddress = senderContact[0]?.tezAddress || `${userId}@${config.relayHost}`;
+
+      const { remote } = partitionRecipients(body.recipients, config.relayHost);
+
+      if (remote.size > 0) {
+        // Fire-and-forget: don't block the response on federation
+        routeToFederation({
+          tezId,
+          tez: {
+            id: tezId,
+            threadId,
+            parentTezId: null,
+            surfaceText: body.surfaceText,
+            type: body.type,
+            urgency: body.urgency,
+            actionRequested: body.actionRequested ?? null,
+            visibility: body.visibility,
+            createdAt: now,
+          },
+          senderAddress,
+          remoteRecipients: remote,
+        }).catch((err) => console.error("Federation routing error:", err));
+      }
+    }
 
     res.status(201).json({
       data: {

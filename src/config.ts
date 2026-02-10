@@ -24,4 +24,10 @@ export const config = {
   maxTezSizeBytes: parseInt(process.env.MAX_TEZ_SIZE_BYTES || "1048576", 10),
   maxContextItems: parseInt(process.env.MAX_CONTEXT_ITEMS || "50", 10),
   maxRecipients: parseInt(process.env.MAX_RECIPIENTS || "100", 10),
+
+  // Federation
+  federationEnabled: process.env.FEDERATION_ENABLED === "true",
+  federationMode: (process.env.FEDERATION_MODE || "allowlist") as "allowlist" | "open",
+  dataDir: process.env.DATA_DIR || "./data",
+  adminUserIds: (process.env.ADMIN_USER_IDS || "").split(",").filter(Boolean),
 } as const;

@@ -22,7 +22,10 @@ export type AuditAction =
   | "contact.updated"
   | "conversation.created"
   | "conversation.message_sent"
-  | "conversation.read";
+  | "conversation.read"
+  | "federation.sent"
+  | "federation.received"
+  | "federation.failed";
 
 export async function recordAudit(entry: {
   teamId?: string;

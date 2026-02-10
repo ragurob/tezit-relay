@@ -6,7 +6,7 @@
  * - No DM/conversation access without membership. Ever.
  */
 
-import { db, teamMembers, conversationMembers } from "../db/index.js";
+import { db, teamMembers, conversationMembers, tezRecipients } from "../db/index.js";
 import { eq, and } from "drizzle-orm";
 
 export async function isTeamMember(
@@ -79,12 +79,13 @@ export async function assertConversationMember(
  * Assert access to a tez based on its scope:
  * - If team-scoped: user must be a team member
  * - If conversation-scoped: user must be a conversation member
- * - If both: must satisfy at least one
- * - If neither (orphan): only the sender can access
+ * - If recipient: user is in tez_recipients (covers federated tez)
+ * - If both team + conversation: must satisfy at least one
+ * - If neither (orphan): only the sender or a recipient can access
  */
 export async function assertTezAccess(
   userId: string,
-  theTez: { teamId: string | null; conversationId: string | null; senderUserId: string }
+  theTez: { id: string; teamId: string | null; conversationId: string | null; senderUserId: string }
 ): Promise<void> {
   // Sender always has access to their own tez
   if (theTez.senderUserId === userId) return;
@@ -98,6 +99,14 @@ export async function assertTezAccess(
   if (theTez.conversationId) {
     if (await isConversationMember(userId, theTez.conversationId)) return;
   }
+
+  // Recipient check (covers federated tez with no team/conversation)
+  const recipientRows = await db
+    .select({ userId: tezRecipients.userId })
+    .from(tezRecipients)
+    .where(and(eq(tezRecipients.tezId, theTez.id), eq(tezRecipients.userId, userId)))
+    .limit(1);
+  if (recipientRows.length > 0) return;
 
   // No valid access path found
   const err = new Error("Access denied");
